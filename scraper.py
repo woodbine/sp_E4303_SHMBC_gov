@@ -85,7 +85,7 @@ def convert_mth_strings ( mth_string ):
 
 #### VARIABLES 1.0
 
-entity_id = "E4303_SMBC_gov"
+entity_id = "E4303_SHMBC_gov"
 url = "https://secure.sthelens.net/servlet/localtransparency/LocalTransparency"
 errors = 0
 data = []
