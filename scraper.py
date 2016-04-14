@@ -9,9 +9,10 @@ import urllib2
 from datetime import datetime
 from bs4 import BeautifulSoup
 
+
 #### FUNCTIONS 1.2
 
-import requests    #  import requests to validate url
+import requests             # import requests for validating url
 
 def validateFilename(filename):
     filenameregex = '^[a-zA-Z0-9]+_[a-zA-Z0-9]+_[a-zA-Z0-9]+_[0-9][0-9][0-9][0-9]_[0-9QY][0-9]$'
@@ -37,16 +38,16 @@ def validateFilename(filename):
         return True
 
 
-def validateURL(url, requestdata):
-    try:
-        r = requests.post(url, data = requestdata, allow_redirects=True, timeout=20)
+def validateURL(url):
+
+     try:
+        r = requests.get(url, allow_redirects=True, timeout=20)
         count = 1
         while r.status_code == 500 and count < 4:
             print ("Attempt {0} - Status code: {1}. Retrying.".format(count, r.status_code))
             count += 1
-            r = requests.post(url, data = requestdata, allow_redirects=True, timeout=20)
+            r = requests.get(url, allow_redirects=True, timeout=20)
         sourceFilename = r.headers.get('Content-Disposition')
-
         if sourceFilename:
             ext = os.path.splitext(sourceFilename)[1].replace('"', '').replace(';', '').replace(' ', '')
         else:
@@ -54,14 +55,13 @@ def validateURL(url, requestdata):
         validURL = r.status_code == 200
         validFiletype = ext.lower() in ['.csv', '.xls', '.xlsx']
         return validURL, validFiletype
-    except:
+     except:
         print ("Error validating URL.")
         return False, False
 
-
-def validate(filename, file_url, requestdata):
+def validate(filename, file_url):
     validFilename = validateFilename(filename)
-    validURL, validFiletype = validateURL(file_url, requestdata)
+    validURL, validFiletype = validateURL(file_url)
     if not validFilename:
         print filename, "*Error: Invalid filename*"
         print file_url
@@ -83,12 +83,15 @@ def convert_mth_strings ( mth_string ):
         mth_string = mth_string.replace(k, v)
     return mth_string
 
+
 #### VARIABLES 1.0
 
-entity_id = "E4303_SHMBC_gov"
-url = "https://secure.sthelens.net/servlet/localtransparency/LocalTransparency"
+entity_id = "E0104_NSC_gov"
+urls = "http://data.n-somerset.gov.uk/Download/finance/north-somerset-council-spend-over-250?page={}"
+url = 'http://example.com'
 errors = 0
 data = []
+
 
 #### READ HTML 1.0
 
@@ -97,32 +100,35 @@ soup = BeautifulSoup(html, 'lxml')
 
 
 #### SCRAPE DATA
+import itertools
 
-blocks = soup.find('select', attrs = {'id':'Options'})
-options = blocks.find_all('option' )
-for option in options:
-    links = option['value']
-    if 'csv' in links:
-        csvMth = links[:3]
-        csvYr = links.split('.')[0][-4:]
+for i in itertools.count():
+    html = urllib2.urlopen(urls.format(i))
+    soup = BeautifulSoup(html, 'lxml')
+    links = soup.find_all('a', 'download button green CSV')
+    next_page = soup.find('table', id='DataSetList').find('tfoot').find_all('a')[-1].text
+    for link in links:
+        url = 'http://data.n-somerset.gov.uk'+link['href'].split('?version')[0]
+        csvYr = link['href'].split('/CSV')[0].replace('-1', '')[-4:]
+        csvMth = link['href'].split('/CSV')[0].replace('-1', '').split('-')[-2][:3]
         csvMth = convert_mth_strings(csvMth.upper())
-        requestdata = {'Options':'{}'.format(links),
-                'loadFile':'Load file',}
-        data.append([csvYr, csvMth, url, requestdata])
+        data.append([csvYr, csvMth, url])
+    if '>' not in next_page:
+        break
 
 
 #### STORE DATA 1.0
 
 for row in data:
-    csvYr, csvMth, url, requestdata = row
+    csvYr, csvMth, url = row
     filename = entity_id + "_" + csvYr + "_" + csvMth
     todays_date = str(datetime.now())
     file_url = url.strip()
 
-    valid = validate(filename, file_url, requestdata)
+    valid = validate(filename, file_url)
 
     if valid == True:
-        scraperwiki.sqlite.save(unique_keys=['f'], data={"l": file_url, "f": filename, "d": todays_date })
+        scraperwiki.sqlite.save(unique_keys=['l'], data={"l": file_url, "f": filename, "d": todays_date })
         print filename
     else:
         errors += 1
