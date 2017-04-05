@@ -86,9 +86,10 @@ def convert_mth_strings ( mth_string ):
 #### VARIABLES 1.0
 
 entity_id = "E4303_SHMBC_gov"
-url = "https://secure.sthelens.net/servlet/localtransparency/LocalTransparency"
+urls = ["https://secure.sthelens.net/servlet/localtransparency/LocalTransparency", "https://secure.sthelens.net/servlet/localtransparency/PreviousYears"]
 errors = 0
 data = []
+url="http://example.com"
 
 #### READ HTML 1.0
 
@@ -97,18 +98,41 @@ soup = BeautifulSoup(html, 'lxml')
 
 
 #### SCRAPE DATA
+for url in urls:
+    if 'PreviousYears' not in url:
+        html = urllib2.urlopen(url)
+        soup = BeautifulSoup(html, 'lxml')
+        blocks = soup.find('select', attrs = {'id':'Options'})
+        options = blocks.find_all('option' )
+        for option in options:
+            links = option['value']
+            if 'csv' in links:
+                csvMth = links[:3]
+                csvYr = links.split('.')[0][-4:]
+                csvMth = convert_mth_strings(csvMth.upper())
+                requestdata = {'Options':'{}'.format(links),
+                        'loadFile':'Load file',}
+                data.append([csvYr, csvMth, url, requestdata])
+    else:
+        html = urllib2.urlopen(url)
+        soup = BeautifulSoup(html, 'lxml')
+        years = soup.find('select', id="OptionsYear").find_all('option')
+        for year in years:
+            year = year['value']
+            year_html = urllib2.urlopen('https://secure.sthelens.net/servlet/localtransparency/PreviousYears?filter={}'.format(year))
+            year_soup = BeautifulSoup(year_html, 'lxml')
+            blocks = year_soup.find('select', attrs={'id': 'Options'})
+            options = blocks.find_all('option')
+            for option in options:
+                links = option['value']
+                if 'csv' in links:
+                    csvMth = links[:3]
+                    csvYr = links.split('.')[0][-4:]
+                    csvMth = convert_mth_strings(csvMth.upper())
+                    requestdata = {'OptionsYear':year, 'Options':'{}'.format(links),
+                                   'loadFile':'Load file'}
+                    data.append([csvYr, csvMth, url, requestdata])
 
-blocks = soup.find('select', attrs = {'id':'Options'})
-options = blocks.find_all('option' )
-for option in options:
-    links = option['value']
-    if 'csv' in links:
-        csvMth = links[:3]
-        csvYr = links.split('.')[0][-4:]
-        csvMth = convert_mth_strings(csvMth.upper())
-        requestdata = {'Options':'{}'.format(links),
-                'loadFile':'Load file',}
-        data.append([csvYr, csvMth, url, requestdata])
 
 
 #### STORE DATA 1.0
@@ -122,7 +146,7 @@ for row in data:
     valid = validate(filename, file_url, requestdata)
 
     if valid == True:
-        # scraperwiki.sqlite.save(unique_keys=['f'], data={"l": file_url, "f": filename, "d": todays_date })
+        scraperwiki.sqlite.save(unique_keys=['f'], data={"l": file_url, "f": filename, "d": todays_date })
         # print filename
         print 'the scraper needs POST requests to get the spending files'
     else:
